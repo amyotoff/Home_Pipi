@@ -22,7 +22,10 @@ You should receive a response within 48 hours.
 ## Security Boundaries
 
 ### 1. Access Control
+
 Only Telegram users listed in `OWNER_TG_IDS` can interact with the bot. Non-owners are silently rejected (private chat gets a polite refusal).
+
+> ⚠️ **Fail-open by default.** If `OWNER_TG_IDS` is empty or missing, `isOwner()` returns `true` for all users — anyone on Telegram can use your bot as a full owner with access to all skills (including shell commands, network scanning, and home automation). **Always set `OWNER_TG_IDS` before exposing the bot outside your local network.**
 
 ### 2. Shell Command Isolation
 `src/utils/shell.ts` restricts commands to an allowlist of safe network diagnostic tools. Shell operators (`;`, `&&`, `|`, `` ` ``, `$()`) are blocked.
