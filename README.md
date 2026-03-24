@@ -41,7 +41,7 @@ This is not a framework. It's a working butler. Fork it, customize it, make it y
 
 1. **Clone:**
    ```bash
-   git clone https://github.com/Amyote/Home_Pipi.git
+   git clone https://github.com/amyotoff/Home_Pipi.git
    cd Home_Pipi
    ```
 
@@ -199,7 +199,7 @@ Architecture inspired by [NanoClaw](https://github.com/qwibitai/nanoclaw) — th
 
 ## Community
 
-Found a bug? Have an idea? [Open an issue](https://github.com/Amyote/Home_Pipi/issues).
+Found a bug? Have an idea? [Open an issue](https://github.com/amyotoff/Home_Pipi/issues).
 
 ## Changelog
 

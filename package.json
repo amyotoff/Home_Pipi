@@ -26,13 +26,13 @@
   ],
   "author": "Amyote",
   "license": "MIT",
-  "homepage": "https://github.com/Amyote/Home_Pipi",
+  "homepage": "https://github.com/amyotoff/Home_Pipi",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Amyote/Home_Pipi.git"
+    "url": "git+https://github.com/amyotoff/Home_Pipi.git"
   },
   "bugs": {
-    "url": "https://github.com/Amyote/Home_Pipi/issues"
+    "url": "https://github.com/amyotoff/Home_Pipi/issues"
   },
   "type": "commonjs",
   "dependencies": {
