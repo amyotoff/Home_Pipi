@@ -1,0 +1,47 @@
+services:
+  ollama:
+    image: ollama/ollama
+    container_name: ollama
+    restart: always
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+
+  pipi-bot:
+    build: .
+    container_name: pipi-bot
+    restart: always
+    env_file: .env
+    depends_on:
+      - ollama
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - NODE_ENV=production
+      - TZ=${TZ:-UTC}
+      - OLLAMA_URL=http://ollama:11434
+    security_opt:
+      - no-new-privileges:true
+
+  chromium:
+    image: lscr.io/linuxserver/chromium:latest
+    container_name: chromium
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=${TZ:-UTC}
+      - CUSTOM_CMD=chromium-browser --remote-debugging-port=9222 --remote-debugging-address=0.0.0.0 --disable-gpu --disable-dev-shm-usage
+    volumes:
+      - ./data/chromium_profile:/config
+    ports:
+      - "9222:9222"
+    shm_size: "1gb"
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  ollama-data:

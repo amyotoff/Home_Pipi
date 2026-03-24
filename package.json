@@ -1,0 +1,78 @@
+{
+  "name": "home-pipi",
+  "version": "2.0.0",
+  "description": "Home PiPi — AI Butler for Smart Home on Raspberry Pi",
+  "main": "dist/index.js",
+  "scripts": {
+    "start": "node dist/index.js",
+    "dev": "nodemon --exec npx ts-node src/index.ts",
+    "build": "tsc && cp -r src/core/prompts dist/core/prompts",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\"",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepare": "husky"
+  },
+  "keywords": [
+    "smart-home",
+    "telegram-bot",
+    "raspberry-pi",
+    "ai-butler",
+    "gemini",
+    "home-automation"
+  ],
+  "author": "Amyote",
+  "license": "MIT",
+  "homepage": "https://github.com/Amyote/Home_Pipi",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Amyote/Home_Pipi.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Amyote/Home_Pipi/issues"
+  },
+  "type": "commonjs",
+  "dependencies": {
+    "@google/genai": "^1.42.0",
+    "@hapi/boom": "^10.0.1",
+    "@whiskeysockets/baileys": "^7.0.0-rc.9",
+    "better-sqlite3": "^12.6.2",
+    "discord.js": "^14.25.1",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "mqtt": "^5.15.0",
+    "multicast-dns": "^7.2.5",
+    "node-cron": "^4.2.1",
+    "node-tradfri-client": "^3.2.0",
+    "nodemailer": "^8.0.3",
+    "playwright-core": "^1.58.2",
+    "suncalc": "^1.9.0",
+    "telegraf": "^4.16.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/cheerio": "^0.22.35",
+    "@types/express": "^5.0.6",
+    "@types/multicast-dns": "^7.2.4",
+    "@types/node": "^25.3.0",
+    "@types/node-cron": "^3.0.11",
+    "@types/nodemailer": "^7.0.11",
+    "@types/suncalc": "^1.9.2",
+    "eslint": "^10.1.0",
+    "globals": "^17.4.0",
+    "husky": "^9.1.7",
+    "nodemon": "^3.1.14",
+    "prettier": "^3.8.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.57.2",
+    "vitest": "^4.1.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,0 +1,35 @@
+# Development overrides for Raspberry Pi local development
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+#
+# Raspberry Pi 4/5 with ≥ 4 GB RAM recommended
+
+services:
+  pipi-bot:
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+    volumes:
+      - ./data:/app/data
+      - ./src:/app/src
+      - /var/run/dbus:/var/run/dbus
+      - /run/udev:/run/udev:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - NODE_ENV=development
+      - TZ=${TZ:-UTC}
+    command: npm run dev
+    ports: !reset []
+    security_opt: !reset
+      - seccomp:unconfined
+
+  ollama:
+    network_mode: host
+    ports: !reset []
+
+  chromium:
+    security_opt: !reset
+      - seccomp:unconfined
+    ports:
+      - "3000:3000"
+      - "3001:3001"
+      - "9222:9222"
