@@ -3,8 +3,7 @@ services:
     image: ollama/ollama
     container_name: ollama
     restart: always
-    ports:
-      - "11434:11434"
+    # No ports exposed — only pipi-bot accesses ollama via docker network
     volumes:
       - ollama-data:/root/.ollama
 
@@ -23,8 +22,14 @@ services:
       - NODE_ENV=production
       - TZ=${TZ:-UTC}
       - OLLAMA_URL=http://ollama:11434
+      - CHROMIUM_CDP_URL=http://chromium:9222
     security_opt:
       - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
 
   chromium:
     image: lscr.io/linuxserver/chromium:latest
@@ -36,8 +41,7 @@ services:
       - CUSTOM_CMD=chromium-browser --remote-debugging-port=9222 --remote-debugging-address=0.0.0.0 --disable-gpu --disable-dev-shm-usage
     volumes:
       - ./data/chromium_profile:/config
-    ports:
-      - "9222:9222"
+    # No ports exposed — only pipi-bot accesses chromium via docker network
     shm_size: "1gb"
     restart: unless-stopped
     security_opt:
@@ -45,3 +49,4 @@ services:
 
 volumes:
   ollama-data:
+

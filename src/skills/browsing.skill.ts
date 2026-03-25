@@ -2,6 +2,7 @@ import { Type } from '@google/genai';
 import { SkillManifest } from './_types';
 import { withBrowserContext } from '../utils/browser';
 import { searchAndSummarize } from '../utils/search';
+import { assertPublicUrl } from '../utils/url-guard';
 
 const skill: SkillManifest = {
     name: 'browsing',
@@ -52,7 +53,14 @@ const skill: SkillManifest = {
         async browse_web(args: { url: string }) {
             const url = args.url;
             if (!url || !url.startsWith('http')) {
-                return `[TOOL_RESULT] Ошибка: Неверный URL: ${url}`;
+                return `[TOOL_ERROR] Неверный URL: ${url}`;
+            }
+
+            // Block access to private/local network
+            try {
+                await assertPublicUrl(url);
+            } catch (err: any) {
+                return `[TOOL_ERROR] Доступ запрещён: ${err.message}`;
             }
 
             try {

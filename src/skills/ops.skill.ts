@@ -1,6 +1,6 @@
 import { Type } from '@google/genai';
 import { SkillManifest } from './_types';
-import { runCommand } from '../utils/shell';
+import { runSafeCommand } from '../utils/safe-shell';
 import { getHealthSummary, getSystemMetrics, setKillSwitch, isKillSwitchActive } from '../core/healthcheck';
 import { getDailyTokenCost, logEvent } from '../db';
 
@@ -20,14 +20,14 @@ export function setOperatorMode(mode: OperatorMode): void {
     logEvent('operator_mode', { mode });
 }
 
-// Whitelist of restartable services (Docker container names or systemd units)
-const RESTARTABLE_SERVICES: Record<string, string> = {
-    'ollama': 'docker restart ollama',
-    'pipi-bot': 'docker restart pipi-bot',
-    'mqtt': 'docker restart mosquitto',
-    'zigbee2mqtt': 'docker restart zigbee2mqtt',
-    'tailscale': 'sudo systemctl restart tailscale',
-    'wireguard': 'sudo systemctl restart wg-quick@wg0',
+// Whitelist of restartable services — bin + args, no shell strings
+const RESTARTABLE_SERVICES: Record<string, { bin: string; args: string[] }> = {
+    'ollama':       { bin: 'docker', args: ['restart', 'ollama'] },
+    'pipi-bot':     { bin: 'docker', args: ['restart', 'pipi-bot'] },
+    'mqtt':         { bin: 'docker', args: ['restart', 'mosquitto'] },
+    'zigbee2mqtt':  { bin: 'docker', args: ['restart', 'zigbee2mqtt'] },
+    'tailscale':    { bin: 'systemctl', args: ['restart', 'tailscale'] },
+    'wireguard':    { bin: 'systemctl', args: ['restart', 'wg-quick@wg0'] },
 };
 
 // ==========================================
@@ -37,7 +37,7 @@ const RESTARTABLE_SERVICES: Record<string, string> = {
 const skill: SkillManifest = {
     name: 'ops',
     description: 'Pi Operator: диагностика, рестарт сервисов, логи, сеть, killswitch',
-    version: '1.0.0',
+    version: '1.1.0',
     tools: [
         {
             name: 'ops_report',
@@ -114,8 +114,12 @@ const skill: SkillManifest = {
                 const daily = getDailyTokenCost();
                 const health = getHealthSummary();
 
-                // Only docker ps needs a live shell call
-                const dockerPs = await runCommand('docker ps --format "{{.Names}}: {{.Status}}" 2>/dev/null || echo "Docker недоступен"', 5000);
+                let dockerPs: string;
+                try {
+                    dockerPs = await runSafeCommand('docker', ['ps', '--format', '{{.Names}}: {{.Status}}'], 5000);
+                } catch {
+                    dockerPs = 'Docker недоступен';
+                }
 
                 const swap = m.swapTotalMB > 0 ? `\nSwap: ${m.swapUsedMB}MB / ${m.swapTotalMB}MB` : '';
                 const throttle = m.throttleHex !== '0x0' ? `\n⚡ Throttle: ${m.throttleHex}` : '';
@@ -130,7 +134,7 @@ const skill: SkillManifest = {
                     `\nОператор: ${operatorMode}\n` +
                     `Токены сегодня: $${daily.cost_usd.toFixed(2)} (${daily.calls} вызовов)`;
             } catch (err: any) {
-                return `[TOOL_RESULT] Ошибка: ${err.message}`;
+                return `[TOOL_ERROR] Отчёт: ${err.message}`;
             }
         },
 
@@ -138,21 +142,21 @@ const skill: SkillManifest = {
             const svc = args.service.toLowerCase();
 
             if (operatorMode === 'READ') {
-                return `[TOOL_RESULT] Режим READ -- рестарт запрещён. Переключи в SAFE-ACT: ops_mode(mode="SAFE-ACT")`;
+                return `[TOOL_RESULT] Режим READ — рестарт запрещён. Переключи в SAFE-ACT: ops_mode(mode="SAFE-ACT")`;
             }
 
-            const cmd = RESTARTABLE_SERVICES[svc];
-            if (!cmd) {
+            const entry = RESTARTABLE_SERVICES[svc];
+            if (!entry) {
                 return `[TOOL_RESULT] Сервис "${svc}" не в whitelist. Доступные: ${Object.keys(RESTARTABLE_SERVICES).join(', ')}`;
             }
 
-            logEvent('ops_restart', { service: svc, mode: operatorMode, cmd });
+            logEvent('ops_restart', { service: svc, mode: operatorMode, bin: entry.bin, args: entry.args });
 
             try {
-                const output = await runCommand(cmd, 30000);
+                const output = await runSafeCommand(entry.bin, entry.args, 30000);
                 return `[TOOL_RESULT] ${svc} перезапущен.\n${output}`;
             } catch (err: any) {
-                return `[TOOL_RESULT] Ошибка рестарта ${svc}: ${err.message}`;
+                return `[TOOL_ERROR] Рестарт ${svc}: ${err.message}`;
             }
         },
 
@@ -163,36 +167,44 @@ const skill: SkillManifest = {
             try {
                 let output: string;
                 if (source === 'system') {
-                    output = await runCommand(`journalctl -p err..alert -n ${lines} --no-pager 2>/dev/null || echo "journalctl недоступен"`, 10000);
+                    try {
+                        output = await runSafeCommand('journalctl', ['-p', 'err..alert', '-n', String(lines), '--no-pager'], 10000);
+                    } catch {
+                        output = 'journalctl недоступен';
+                    }
                 } else {
-                    // Docker container logs
+                    // Docker container logs — sanitize container name
                     const safeName = source.replace(/[^a-zA-Z0-9_-]/g, '');
-                    output = await runCommand(`docker logs --tail ${lines} ${safeName} 2>&1 | tail -${lines}`, 10000);
+                    output = await runSafeCommand('docker', ['logs', '--tail', String(lines), safeName], 10000);
                 }
                 return `[TOOL_RESULT] Логи (${source}, последние ${lines}):\n${output}`;
             } catch (err: any) {
-                return `[TOOL_RESULT] Ошибка чтения логов: ${err.message}`;
+                return `[TOOL_ERROR] Чтение логов: ${err.message}`;
             }
         },
 
         async ops_net_diag() {
             try {
-                const results = await Promise.all([
-                    runCommand('ping -c 1 -W 2 8.8.8.8 2>&1 | tail -1 || echo "FAIL"', 5000),
-                    runCommand('ping -c 1 -W 2 192.168.1.1 2>&1 | tail -1 || echo "FAIL"', 5000),
-                    runCommand('nslookup google.com 2>&1 | tail -2 || echo "DNS FAIL"', 5000),
-                    runCommand('curl -s -o /dev/null -w "%{http_code} %{time_total}s" --max-time 5 https://google.com 2>/dev/null || echo "HTTP FAIL"', 8000),
-                    runCommand('iwconfig 2>/dev/null | grep -i "signal level" || echo "WiFi: N/A"', 3000),
+                const [ping8, pingGw, dns, wifi] = await Promise.all([
+                    runSafeCommand('ping', ['-c', '1', '-W', '2', '8.8.8.8'], 5000).catch(() => 'FAIL'),
+                    runSafeCommand('ping', ['-c', '1', '-W', '2', '192.168.1.1'], 5000).catch(() => 'FAIL'),
+                    runSafeCommand('nslookup', ['google.com'], 5000).catch(() => 'DNS FAIL'),
+                    runSafeCommand('iwconfig', [], 3000).catch(() => 'WiFi: N/A'),
                 ]);
 
+                // Extract just the summary lines from ping
+                const extractPingSummary = (out: string) => {
+                    const lines = out.split('\n');
+                    return lines.filter(l => l.includes('packets transmitted') || l.includes('rtt') || l.includes('round-trip')).join(' ') || out.split('\n').pop() || out;
+                };
+
                 return `[TOOL_RESULT] Сетевая диагностика:\n` +
-                    `Ping 8.8.8.8: ${results[0]}\n` +
-                    `Ping gateway: ${results[1]}\n` +
-                    `DNS: ${results[2]}\n` +
-                    `HTTP: ${results[3]}\n` +
-                    `WiFi: ${results[4]}`;
+                    `Ping 8.8.8.8: ${extractPingSummary(ping8)}\n` +
+                    `Ping gateway: ${extractPingSummary(pingGw)}\n` +
+                    `DNS: ${dns.split('\n').slice(-2).join(' ')}\n` +
+                    `WiFi: ${wifi}`;
             } catch (err: any) {
-                return `[TOOL_RESULT] Ошибка диагностики: ${err.message}`;
+                return `[TOOL_ERROR] Диагностика: ${err.message}`;
             }
         },
 

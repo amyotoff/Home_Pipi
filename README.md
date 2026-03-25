@@ -57,7 +57,7 @@ This is not a framework. It's a working butler. Fork it, customize it, make it y
    | `HOUSEHOLD_CHAT_ID` | Your Telegram group chat ID |
    | `OWNER_TG_IDS` | Your Telegram user IDs (comma-separated) |
 
-   > ⚠️ **Security: `OWNER_TG_IDS` is fail-open by default.** If this variable is empty or missing, `isOwner()` returns `true` for *everyone* — any Telegram user can talk to your bot as a full owner. This is convenient for first-time setup, but **you must set `OWNER_TG_IDS` before exposing the bot to the internet.** See [SECURITY.md](SECURITY.md).
+   > ⚠️ **Security: The bot is fail-closed by default.** If `OWNER_TG_IDS`, `TELEGRAM_BOT_TOKEN`, or `GEMINI_API_KEY` are missing, the bot will refuse to start. This prevents accidental exposure. See [SECURITY.md](SECURITY.md).
 
 3. **Launch:**
    ```bash
@@ -187,7 +187,7 @@ Gemini is primary, Ollama is the fallback. Swap models in `.env`. The codebase i
 Any machine with Docker works. But running a butler on a $50 computer that sits quietly in the corner is kind of the point.
 
 **Is this secure?**
-Shell command allowlist, Docker isolation in production, and owners-only access control — but note that **access control is fail-open by default**: if `OWNER_TG_IDS` is empty, everyone is an owner. Set it before going public. See [SECURITY.md](SECURITY.md). The codebase is small enough that you can actually audit it.
+Strict shell command allowlist (no `exec` shell injection), Docker isolation, private IP blocking for browser tools, and fail-closed owners-only access control. The bot will refuse to start if security config is missing. See [SECURITY.md](SECURITY.md). The codebase is small enough that you can actually audit it.
 
 **Why Russian?**
 Because the first household that used it speaks Russian. Jeeves understands any language Gemini supports, but his personality is best experienced in Russian.

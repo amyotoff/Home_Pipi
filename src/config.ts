@@ -27,7 +27,26 @@ export const OWNER_TG_IDS: Set<string> = new Set(
 );
 
 export function isOwner(tgId: string): boolean {
-    return OWNER_TG_IDS.size === 0 || OWNER_TG_IDS.has(tgId);
+    if (OWNER_TG_IDS.size === 0) return false;
+    return OWNER_TG_IDS.has(tgId);
+}
+
+/**
+ * Validate that critical environment variables are set.
+ * Must be called at bootstrap — refuses to start with unsafe config.
+ */
+export function validateCriticalConfig(): void {
+    const errors: string[] = [];
+
+    if (!TELEGRAM_BOT_TOKEN) errors.push('TELEGRAM_BOT_TOKEN is not set');
+    if (!GEMINI_API_KEY) errors.push('GEMINI_API_KEY is not set');
+    if (OWNER_TG_IDS.size === 0) errors.push('OWNER_TG_IDS is empty — bot would reject everyone');
+
+    if (errors.length > 0) {
+        const msg = `\n❌ CRITICAL CONFIG ERRORS:\n${errors.map(e => `  • ${e}`).join('\n')}\n\nRefusing to start. Fix .env and try again.\n`;
+        console.error(msg);
+        throw new Error(`Unsafe config: ${errors.join('; ')}`);
+    }
 }
 
 // Presence Detection

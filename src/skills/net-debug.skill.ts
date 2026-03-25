@@ -1,11 +1,11 @@
 import { Type } from '@google/genai';
 import { SkillManifest } from './_types';
-import { runCommand } from '../utils/shell';
+import { runSafeCommand } from '../utils/safe-shell';
 
 const skill: SkillManifest = {
     name: 'net-debug',
     description: 'Сетевая диагностика: tcpdump, порт-скан, traceroute, ARP-таблица, DNS lookup',
-    version: '1.0.0',
+    version: '1.1.0',
 
     tools: [
         {
@@ -121,12 +121,17 @@ const skill: SkillManifest = {
         async net_capture(args: { filter?: string; seconds?: number; count?: number }) {
             const seconds = Math.min(Math.max(args.seconds || 5, 1), 10);
             const count = Math.min(Math.max(args.count || 20, 1), 100);
-            const filter = args.filter || '';
-            const sanitized = filter.replace(/[;&|`$()]/g, '');
+
+            // Build args array — no shell string concatenation
+            const tcpdumpArgs: string[] = ['-nn', '-c', String(count)];
+            if (args.filter) {
+                // Split filter into tokens — tcpdump expects them as separate args
+                const filterTokens = args.filter.trim().split(/\s+/);
+                tcpdumpArgs.push(...filterTokens);
+            }
 
             try {
-                const cmd = `timeout ${seconds} tcpdump -nn -c ${count} ${sanitized} 2>&1 | head -50`;
-                const output = await runCommand(cmd, (seconds + 2) * 1000);
+                const output = await runSafeCommand('timeout', [String(seconds), 'tcpdump', ...tcpdumpArgs], (seconds + 2) * 1000);
 
                 if (!output || output.includes('tcpdump: command not found')) {
                     return '[TOOL_RESULT] tcpdump не установлен на PiPi.';
@@ -136,9 +141,9 @@ const skill: SkillManifest = {
                 const packetLines = lines.filter(l => !l.startsWith('tcpdump:') && !l.startsWith('listening on'));
                 const summary = lines.find(l => l.includes('packets captured')) || '';
 
-                return `[TOOL_RESULT] Захват пакетов (${seconds}с, фильтр: "${filter || 'all'}"):\n${packetLines.slice(0, 30).join('\n')}\n${summary}`;
+                return `[TOOL_RESULT] Захват пакетов (${seconds}с, фильтр: "${args.filter || 'all'}"):\n${packetLines.slice(0, 30).join('\n')}\n${summary}`;
             } catch (err: any) {
-                return `[TOOL_RESULT] Ошибка tcpdump: ${err.message}`;
+                return `[TOOL_ERROR] tcpdump: ${err.message}`;
             }
         },
 
@@ -148,87 +153,110 @@ const skill: SkillManifest = {
                 return '[TOOL_RESULT] Некорректный IP-адрес.';
             }
 
-            const ports = args.ports ? `-p ${args.ports.replace(/[^0-9,\-]/g, '')}` : '--top-ports 100';
+            const nmapArgs = ['-Pn'];
+            if (args.ports) {
+                const safePorts = args.ports.replace(/[^0-9,-]/g, '');
+                nmapArgs.push('-p', safePorts);
+            } else {
+                nmapArgs.push('--top-ports', '100');
+            }
+            nmapArgs.push(ip);
 
             try {
-                const output = await runCommand(`nmap -Pn ${ports} ${ip} 2>/dev/null`, 30000);
+                const output = await runSafeCommand('nmap', nmapArgs, 30000);
                 const portLines = output.split('\n').filter(l =>
                     /^\d+\//.test(l.trim()) || l.includes('PORT') || l.includes('Host is')
                 );
 
                 return `[TOOL_RESULT] Скан портов ${ip}:\n${portLines.join('\n') || 'Открытых портов не найдено.'}`;
             } catch (err: any) {
-                return `[TOOL_RESULT] Ошибка сканирования: ${err.message}`;
+                return `[TOOL_ERROR] Сканирование: ${err.message}`;
             }
         },
 
         async net_arp() {
             try {
-                const output = await runCommand('arp -a 2>/dev/null || ip neigh show 2>/dev/null');
+                const output = await runSafeCommand('arp', ['-a']);
                 const lines = output.split('\n').filter(l => l.trim());
                 return `[TOOL_RESULT] ARP-таблица (${lines.length} записей):\n${lines.join('\n')}`;
-            } catch (err: any) {
-                return `[TOOL_RESULT] Ошибка: ${err.message}`;
+            } catch {
+                try {
+                    const output = await runSafeCommand('ip', ['neigh', 'show']);
+                    const lines = output.split('\n').filter(l => l.trim());
+                    return `[TOOL_RESULT] ARP-таблица (${lines.length} записей):\n${lines.join('\n')}`;
+                } catch (err: any) {
+                    return `[TOOL_ERROR] ARP: ${err.message}`;
+                }
             }
         },
 
         async net_traceroute(args: { target: string }) {
-            const target = args.target.replace(/[;&|`$()]/g, '');
+            const target = args.target.replace(/[^a-zA-Z0-9.\-:]/g, '');
+            if (!target) return '[TOOL_ERROR] Некорректный хост.';
+
             try {
-                const output = await runCommand(`traceroute -m 15 -w 2 ${target} 2>&1`, 30000);
+                const output = await runSafeCommand('traceroute', ['-m', '15', '-w', '2', target], 30000);
                 return `[TOOL_RESULT] Traceroute до ${target}:\n${output}`;
             } catch (err: any) {
-                return `[TOOL_RESULT] Ошибка traceroute: ${err.message}`;
+                return `[TOOL_ERROR] traceroute: ${err.message}`;
             }
         },
 
         async net_dns(args: { hostname: string }) {
-            const hostname = args.hostname.replace(/[;&|`$()]/g, '');
+            const hostname = args.hostname.replace(/[^a-zA-Z0-9.\-]/g, '');
+            if (!hostname) return '[TOOL_ERROR] Некорректный хостнейм.';
+
             try {
-                const output = await runCommand(`nslookup ${hostname} 2>&1 || dig +short ${hostname} 2>&1`, 10000);
+                const output = await runSafeCommand('nslookup', [hostname], 10000);
                 return `[TOOL_RESULT] DNS ${hostname}:\n${output}`;
-            } catch (err: any) {
-                return `[TOOL_RESULT] Ошибка DNS: ${err.message}`;
+            } catch {
+                try {
+                    const output = await runSafeCommand('dig', ['+short', hostname], 10000);
+                    return `[TOOL_RESULT] DNS ${hostname}:\n${output}`;
+                } catch (err: any) {
+                    return `[TOOL_ERROR] DNS: ${err.message}`;
+                }
             }
         },
 
         async net_ping(args: { target: string; count?: number }) {
-            const target = args.target.replace(/[;&|`$()]/g, '');
+            const target = args.target.replace(/[^a-zA-Z0-9.\-:]/g, '');
+            if (!target) return '[TOOL_ERROR] Некорректный хост.';
             const count = Math.min(Math.max(args.count || 4, 1), 10);
+
             try {
-                const output = await runCommand(`ping -c ${count} -W 3 ${target} 2>&1`, (count * 4 + 2) * 1000);
-                // Extract the summary line
+                const output = await runSafeCommand('ping', ['-c', String(count), '-W', '3', target], (count * 4 + 2) * 1000);
                 const lines = output.split('\n');
                 const stats = lines.filter(l =>
                     l.includes('packets transmitted') || l.includes('rtt') || l.includes('round-trip')
                 );
                 return `[TOOL_RESULT] Ping ${target}:\n${stats.join('\n') || output}`;
             } catch (err: any) {
-                return `[TOOL_RESULT] ${target} недоступен: ${err.message}`;
+                return `[TOOL_ERROR] ${target} недоступен: ${err.message}`;
             }
         },
 
         async net_connections(args: { filter?: string }) {
             const filter = args.filter || 'listening';
-            let cmd: string;
+            let ssArgs: string[];
 
             switch (filter) {
                 case 'established':
-                    cmd = 'ss -tnp state established 2>/dev/null || netstat -tnp 2>/dev/null | grep ESTABLISHED';
+                    ssArgs = ['-tnp', 'state', 'established'];
                     break;
                 case 'all':
-                    cmd = 'ss -tnap 2>/dev/null || netstat -tnap 2>/dev/null';
+                    ssArgs = ['-tnap'];
                     break;
                 default: // listening
-                    cmd = 'ss -tlnp 2>/dev/null || netstat -tlnp 2>/dev/null';
+                    ssArgs = ['-tlnp'];
             }
 
             try {
-                const output = await runCommand(cmd, 10000);
+                const output = await runSafeCommand('ss', ssArgs, 10000);
                 const lines = output.split('\n').slice(0, 30);
                 return `[TOOL_RESULT] Сетевые соединения (${filter}):\n${lines.join('\n')}`;
             } catch (err: any) {
-                return `[TOOL_RESULT] Ошибка: ${err.message}`;
+                return `[TOOL_ERROR] Подключения: ${err.message}`;
             }
         },
     }

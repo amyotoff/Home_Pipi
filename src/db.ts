@@ -181,8 +181,29 @@ function runMigrations(database: Database.Database): void {
 export function initDatabase(): void {
     if (!db) {
         db = new Database(DB_PATH);
+
+        // WAL mode for crash resilience (critical on Raspberry Pi / SD cards)
+        db.pragma('journal_mode = WAL');
+        db.pragma('busy_timeout = 5000');
+        db.pragma('synchronous = NORMAL');
+
         createSchema(db);
         runMigrations(db);
+
+        // Graceful shutdown
+        const shutdown = () => {
+            if (db) {
+                try {
+                    db.pragma('wal_checkpoint(TRUNCATE)');
+                    db.close();
+                    console.log('[DB] Closed gracefully.');
+                } catch (err) {
+                    console.error('[DB] Error during shutdown:', err);
+                }
+            }
+        };
+        process.on('SIGTERM', shutdown);
+        process.on('SIGINT', shutdown);
     }
 }
 
