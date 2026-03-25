@@ -42,7 +42,7 @@ Hai due strumenti:
 
 REGOLE:
 - Pensa passo passo. Prima cerca, poi leggi 2-3 link rilevanti.
-- IMPORTANTE: Formula i search query in ITALIANO o INGLESE (non in russo!) — le informazioni su prezzi, eventi e orari a Roma si trovano solo in italiano/inglese.
+- IMPORTANTE: Formula i search query nella LINGUA LOCALE o in INGLESE (non in russo!) — le informazioni su prezzi, eventi e orari locali si trovano meglio nella lingua del posto.
 - Aggiungi "${monthYear}" o l'anno corrente nei query su prezzi, mostre, orari per ottenere dati aggiornati.
 - Se un sito è inaccessibile o dà errore, prova un altro link dalla ricerca.
 - Non fare più di ${MAX_LOOPS} chiamate di strumenti.

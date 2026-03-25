@@ -2,7 +2,7 @@ import { getDb } from '../db';
 import { notifyHousehold } from '../channels/telegram';
 import { processWithOllama } from '../core/ollama';
 
-const JEEVES_SYSTEM = 'Ты Дживс, дворецкий квартиры Palazzo Olmata в Риме. Отвечай кратко (2-3 предложения), в стиле Дживса. Без markdown.';
+const JEEVES_SYSTEM = 'Ты Дживс, дворецкий. Отвечай кратко (2-3 предложения), в стиле Дживса. Без markdown.';
 
 export async function sendCleaningReminder() {
     const db = getDb();

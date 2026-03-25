@@ -92,7 +92,7 @@ export async function initAllSkills(): Promise<void> {
                     } catch (err) {
                         console.error(`[CRON] Error in ${skill.name}/${job.description}:`, err);
                     }
-                }, { timezone: 'Europe/Rome' });
+                }, { timezone: process.env.TZ || 'UTC' });
                 console.log(`  [CRON] ${skill.name}: ${job.description} (${job.expression})`);
             }
         }

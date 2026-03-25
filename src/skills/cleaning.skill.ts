@@ -151,7 +151,7 @@ const skill: SkillManifest = {
             return '[TOOL_RESULT] История чистоты:\n' + results.map(r => `- ${r.task_name}: последний раз мыли ${r.last_completed.substring(0, 10)}`).join('\n');
         },
         async cleaning_suggest_pro() {
-            return `[TOOL_RESULT] Сэр, я вижу, что уборка начинает вас утомлять. Возможно, стоит вызвать профессионального клинера? Я могу найти контакты хороших сервисов в Риме. Без лишнего стресса, на чиле.`;
+            return `[TOOL_RESULT] Сэр, я вижу, что уборка начинает вас утомлять. Возможно, стоит вызвать профессионального клинера? Я могу поискать контакты хороших сервисов поблизости. Без лишнего стресса, на чиле.`;
         },
         async cleaning_optimize_schedule(args: { suggestion: string }) {
             const db = getDb();

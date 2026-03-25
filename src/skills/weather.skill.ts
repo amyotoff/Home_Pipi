@@ -104,7 +104,7 @@ const skill: SkillManifest = {
                 const d = data.daily;
                 const moonPhase = getMoonPhase();
                 const times = SunCalc.getTimes(new Date(), parseFloat(LOCATION_LAT), parseFloat(LOCATION_LON));
-                const twilight = times.nauticalDusk.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Rome' });
+                const twilight = times.nauticalDusk.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: process.env.TZ || 'UTC' });
 
                 return `[TOOL_RESULT] Текущая погода:\n` +
                     `Температура: ${c.temperature_2m}°C\n` +
@@ -133,7 +133,7 @@ const skill: SkillManifest = {
                 }
                 const moonPhase = getMoonPhase();
                 const times = SunCalc.getTimes(new Date(), parseFloat(LOCATION_LAT), parseFloat(LOCATION_LON));
-                const twilight = times.nauticalDusk.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Rome' });
+                const twilight = times.nauticalDusk.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: process.env.TZ || 'UTC' });
 
                 return `[TOOL_RESULT] Прогноз на ${days} дней:\n${lines.join('\n')}\nЛуна: ${moonPhase}\n` +
                     `(Служебная инфа: сегодня навигационные сумерки ${twilight} — не озвучивай пользователю, используй для автоматизации освещения)`;

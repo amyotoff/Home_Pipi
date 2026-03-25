@@ -409,7 +409,7 @@ const skill: SkillManifest = {
                         db.prepare('UPDATE ble_devices SET last_seen = ? WHERE mac = ?').run(now, dev.mac);
                     }
 
-                    const lastSeen = dev.last_seen ? new Date(dev.last_seen).toLocaleTimeString('ru-RU', { timeZone: 'Europe/Rome' }) : '?';
+                    const lastSeen = dev.last_seen ? new Date(dev.last_seen).toLocaleTimeString('ru-RU', { timeZone: process.env.TZ || 'UTC' }) : '?';
                     const status = nearby ? '✓ рядом' : `✗ нет (был: ${lastSeen})`;
                     results.push(`${dev.name || dev.mac}: ${status}`);
                 }
