@@ -2,31 +2,32 @@ import { describe, it, expect } from 'vitest';
 
 describe('config', () => {
     describe('isOwner', () => {
-        it('should allow owner when OWNER_TG_IDS is set', async () => {
-            // Test with dynamic import to avoid config caching
+        it('should reject everyone when OWNER_TG_IDS is empty (fail-closed)', async () => {
             const { isOwner } = await import('./config');
-            // Default: empty OWNER_TG_IDS means everyone is allowed
-            expect(isOwner('111')).toBe(true);
-            expect(isOwner('999')).toBe(true);
-        });
-
-        it('should allow everyone when OWNER_TG_IDS is empty', async () => {
-            const { isOwner } = await import('./config');
-            // When no IDs configured, all users are allowed
-            expect(isOwner('anyone')).toBe(true);
+            // In test env OWNER_TG_IDS is empty → fail-closed
+            expect(isOwner('111')).toBe(false);
+            expect(isOwner('999')).toBe(false);
+            expect(isOwner('anyone')).toBe(false);
         });
     });
 
     describe('isHouseholdChat', () => {
         it('should return false for empty HOUSEHOLD_CHAT_ID', async () => {
             const { isHouseholdChat } = await import('./config');
-            // Default env has empty HOUSEHOLD_CHAT_ID
             expect(isHouseholdChat('12345')).toBe(false);
         });
 
         it('should return false for non-matching chat ID', async () => {
             const { isHouseholdChat } = await import('./config');
             expect(isHouseholdChat('wrong-id')).toBe(false);
+        });
+    });
+
+    describe('validateCriticalConfig', () => {
+        it('should throw when env vars are missing', async () => {
+            const { validateCriticalConfig } = await import('./config');
+            // In test env TELEGRAM_BOT_TOKEN, GEMINI_API_KEY, OWNER_TG_IDS are empty
+            expect(() => validateCriticalConfig()).toThrow(/Unsafe config/);
         });
     });
 

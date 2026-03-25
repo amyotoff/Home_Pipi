@@ -1,7 +1,7 @@
 import { Type } from '@google/genai';
 import { SkillManifest } from './_types';
 import { getDb } from '../db';
-import { runCommand } from '../utils/shell';
+import { runSafeCommand } from '../utils/safe-shell';
 
 // ==========================================
 // Device Classification Heuristics
@@ -129,7 +129,7 @@ const skill: SkillManifest = {
     handlers: {
         async network_scan() {
             try {
-                const output = await runCommand('nmap -sn 192.168.1.0/24 2>/dev/null', 30000);
+                const output = await runSafeCommand('nmap', ['-sn', '192.168.1.0/24'], 30000);
                 const db = getDb();
                 const now = new Date().toISOString();
 
@@ -193,9 +193,14 @@ const skill: SkillManifest = {
         async network_detective() {
             try {
                 // Step 1: ARP table
-                const arpRaw = await runCommand('arp -a 2>/dev/null || ip neigh show 2>/dev/null', 5000);
+                let arpRaw: string;
+                try {
+                    arpRaw = await runSafeCommand('arp', ['-a'], 5000);
+                } catch {
+                    arpRaw = await runSafeCommand('ip', ['neigh', 'show'], 5000);
+                }
                 const arpEntries = arpRaw.split('\n')
-                    .map(line => {
+                    .map((line: string) => {
                         // macOS: host (ip) at mac on iface
                         const m1 = line.match(/\((\d+\.\d+\.\d+\.\d+)\)\s+at\s+([0-9a-f:]+)/i);
                         if (m1) return { ip: m1[1], mac: m1[2].toUpperCase() };
@@ -204,7 +209,7 @@ const skill: SkillManifest = {
                         if (m2) return { ip: m2[1], mac: m2[2].toUpperCase() };
                         return null;
                     })
-                    .filter((e): e is { ip: string; mac: string } => e !== null);
+                    .filter((e: { ip: string; mac: string } | null): e is { ip: string; mac: string } => e !== null);
 
                 if (arpEntries.length === 0) {
                     return '[TOOL_RESULT] ARP-таблица пуста. Сначала запусти network_scan для обнаружения.';
@@ -219,22 +224,22 @@ const skill: SkillManifest = {
                     // Ping check
                     let alive = false;
                     try {
-                        await runCommand(`ping -c 1 -W 1 ${ip}`, 3000);
+                        await runSafeCommand('ping', ['-c', '1', '-W', '1', ip], 3000);
                         alive = true;
                     } catch { }
 
                     // Reverse DNS
                     let hostname = '';
                     try {
-                        const dns = await runCommand(`nslookup ${ip} 2>/dev/null | grep 'name ='`, 3000);
+                        const dns = await runSafeCommand('nslookup', [ip], 3000);
                         const m = dns.match(/name\s*=\s*(.+?)\.?\s*$/);
                         if (m) hostname = m[1];
                     } catch { }
 
                     // Port scan (top 20)
-                    let ports: number[] = [];
+                    const ports: number[] = [];
                     try {
-                        const nmapOut = await runCommand(`nmap -Pn -n --top-ports 20 ${ip} 2>/dev/null`, 15000);
+                        const nmapOut = await runSafeCommand('nmap', ['-Pn', '-n', '--top-ports', '20', ip], 15000);
                         const portMatches = nmapOut.matchAll(/(\d+)\/tcp\s+open/g);
                         for (const pm of portMatches) ports.push(parseInt(pm[1]));
                     } catch { }
@@ -269,11 +274,12 @@ const skill: SkillManifest = {
 
         async ble_scan() {
             try {
-                await runCommand('rfkill unblock bluetooth 2>/dev/null; hciconfig hci0 up 2>/dev/null', 5000);
+                try { await runSafeCommand('rfkill', ['unblock', 'bluetooth'], 5000); } catch { }
+                try { await runSafeCommand('hciconfig', ['hci0', 'up'], 5000); } catch { }
 
                 // Scan for 10 seconds, then list devices
-                await runCommand('timeout 10 bluetoothctl --timeout 10 scan on 2>/dev/null || true', 15000);
-                const devicesRaw = await runCommand('bluetoothctl devices 2>/dev/null', 5000);
+                try { await runSafeCommand('timeout', ['10', 'bluetoothctl', '--timeout', '10', 'scan', 'on'], 15000); } catch { }
+                const devicesRaw = await runSafeCommand('bluetoothctl', ['devices'], 5000);
 
                 if (!devicesRaw.trim()) {
                     return '[TOOL_RESULT] BLE: устройств не обнаружено.';
@@ -293,7 +299,7 @@ const skill: SkillManifest = {
                     // Try to get RSSI
                     let rssi: number | null = null;
                     try {
-                        const info = await runCommand(`bluetoothctl info ${mac} 2>/dev/null | grep RSSI`, 3000);
+                        const info = await runSafeCommand('bluetoothctl', ['info', mac], 3000);
                         const rm = info.match(/RSSI:\s*(-?\d+)/);
                         if (rm) rssi = parseInt(rm[1]);
                     } catch { }
@@ -384,7 +390,8 @@ const skill: SkillManifest = {
                 }
 
                 // Ensure BT is up
-                await runCommand('rfkill unblock bluetooth 2>/dev/null; hciconfig hci0 up 2>/dev/null', 5000);
+                try { await runSafeCommand('rfkill', ['unblock', 'bluetooth'], 5000); } catch { }
+                try { await runSafeCommand('hciconfig', ['hci0', 'up'], 5000); } catch { }
 
                 const now = new Date().toISOString();
                 const results: string[] = [];
@@ -393,14 +400,14 @@ const skill: SkillManifest = {
                     let nearby = false;
                     try {
                         // Try to resolve name — if responds, device is nearby
-                        const name = await runCommand(`hcitool name ${dev.mac} 2>/dev/null`, 5000);
+                        const name = await runSafeCommand('hcitool', ['name', dev.mac], 5000);
                         if (name.trim()) nearby = true;
                     } catch { }
 
                     if (!nearby) {
                         // Fallback: l2ping
                         try {
-                            await runCommand(`l2ping -c 1 -t 2 ${dev.mac} 2>/dev/null`, 5000);
+                            await runSafeCommand('l2ping', ['-c', '1', '-t', '2', dev.mac], 5000);
                             nearby = true;
                         } catch { }
                     }

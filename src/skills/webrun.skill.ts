@@ -2,6 +2,7 @@ import { GoogleGenAI, Type, FunctionDeclaration } from '@google/genai';
 import { SkillManifest } from './_types';
 import { searchAndSummarize } from '../utils/search';
 import { withBrowserContext } from '../utils/browser';
+import { assertPublicUrl } from '../utils/url-guard';
 import { GEMINI_API_KEY } from '../config';
 
 const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
@@ -115,6 +116,8 @@ STOP: Quando hai raccolto abbastanza informazioni, restituisci un report finale 
                                 console.log(`[WEBRUN] web_search grounding result (${resultStr.length} chars)`);
                             } else if (call.name === 'read_page') {
                                 const url = call.args?.url as string;
+                                // Block local/private URLs
+                                await assertPublicUrl(url);
                                 resultStr = await withBrowserContext(async (context) => {
                                     const page = await context.newPage();
                                     // Set realistic User-Agent to avoid bot detection

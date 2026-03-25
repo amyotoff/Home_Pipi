@@ -8,11 +8,13 @@ import './channels/gmail';
 import { handleIncomingMessage } from './router';
 import { initAllSkills } from './skills/_registry';
 import { startTaskScheduler } from './task-scheduler';
-import { MQTT_URL } from './config';
+import { MQTT_URL, validateCriticalConfig } from './config';
 import { startMqtt } from './mqtt';
 
 async function bootstrap() {
     console.log('Bootstrapping Jivs PiPi...');
+
+    validateCriticalConfig();
 
     initDatabase();
     console.log('Database initialized.');

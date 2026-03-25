@@ -13,12 +13,13 @@ services:
       - ./src:/app/src
       - /var/run/dbus:/var/run/dbus
       - /run/udev:/run/udev:ro
-      - /var/run/docker.sock:/var/run/docker.sock
+      # Docker socket NOT mounted — use docker CLI from host if needed
     environment:
       - NODE_ENV=development
       - TZ=${TZ:-UTC}
     command: npm run dev
     ports: !reset []
+    read_only: false
     security_opt: !reset
       - seccomp:unconfined
 
@@ -30,6 +31,5 @@ services:
     security_opt: !reset
       - seccomp:unconfined
     ports:
-      - "3000:3000"
-      - "3001:3001"
-      - "9222:9222"
+      - "127.0.0.1:9222:9222"
+
