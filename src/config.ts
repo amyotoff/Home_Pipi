@@ -13,8 +13,15 @@ export const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
 export const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'qwen2.5:1.5b';
 export const HOUSEHOLD_CHAT_ID = process.env.HOUSEHOLD_CHAT_ID || '';
 
-// IKEA Tradfri
-export const IKEA_GATEWAY_IP = process.env.IKEA_GATEWAY_IP || '192.168.1.xxx';
+// Home Assistant
+export const HA_URL = process.env.HA_URL || 'http://localhost:8123';
+export const HA_TOKEN = process.env.HA_TOKEN || '';
+export const HA_CLIMATE_ENTITY = process.env.HA_CLIMATE_ENTITY || '';
+export const HA_CO2_ENTITY = process.env.HA_CO2_ENTITY || '';
+export const HA_SCENES = (process.env.HA_SCENES || '').split(',').map(s => s.trim()).filter(Boolean);
+
+// IKEA Tradfri — DEPRECATED (replaced by HA integration)
+export const IKEA_GATEWAY_IP = process.env.IKEA_GATEWAY_IP || '';
 export const IKEA_SECURITY_CODE = process.env.IKEA_SECURITY_CODE || '';
 
 // Weather (Open-Meteo)

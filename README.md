@@ -14,7 +14,7 @@ remembers your habits, and has opinions about your cleaning schedule.
 [NanoClaw](https://github.com/qwibitai/nanoclaw) proved that an AI assistant
 doesn't need half a million lines of code. We took that philosophy — *small enough
 to understand, secure enough to trust* — and pointed it at a Raspberry Pi 4
-with IKEA lights and a fridge that's always empty.
+with Home Assistant, MQTT sensors, and a fridge that's always empty.
 
 The result is **Jeeves**: a butler powered by Gemini, backed by SQLite,
 who manages your groceries, controls your lights, monitors your network,
@@ -56,6 +56,8 @@ This is not a framework. It's a working butler. Fork it, customize it, make it y
    | `GEMINI_API_KEY` | [Google AI Studio](https://aistudio.google.com) |
    | `HOUSEHOLD_CHAT_ID` | Your Telegram group chat ID |
    | `OWNER_TG_IDS` | Your Telegram user IDs (comma-separated) |
+   | `HA_URL` | Home Assistant URL (default: `http://localhost:8123`) |
+   | `HA_TOKEN` | HA → Profile → Long-Lived Access Tokens |
 
    > ⚠️ **Security: The bot is fail-closed by default.** If `OWNER_TG_IDS`, `TELEGRAM_BOT_TOKEN`, or `GEMINI_API_KEY` are missing, the bot will refuse to start. This prevents accidental exposure. See [SECURITY.md](SECURITY.md).
 
@@ -89,9 +91,9 @@ npm run typecheck
 |-------|-------------|
 | 🛒 Shopping | Shared grocery list with purchase tracking |
 | 🧹 Cleaning | Task rotation, photo verification, guilt-tripping |
-| 💡 Lights | IKEA Tradfri control (on/off/brightness/color) |
-| 🌡️ Room Sensor | Zigbee2MQTT temperature/humidity monitoring |
-| ❄️ AC Control | Air conditioner management |
+| 💡 Lights | Home Assistant light control (on/off/brightness, party mode) |
+| 🌡️ Room Sensor | Zigbee2MQTT temperature/humidity; CO₂ via HA if `HA_CO2_ENTITY` set |
+| ❄️ AC Control | Climate control via HA (`HA_CLIMATE_ENTITY`) or mock fallback |
 | 🌤️ Weather | Forecasts via Open-Meteo (no API key needed) |
 | 🧠 Memory | Learns habits, remembers preferences, consolidates conversations |
 | 🌐 Network | Device discovery, ARP scanning, port checking |
@@ -139,6 +141,7 @@ you can still turn the lights on.
 | `src/channels/_registry.ts` | Outbound channel registration |
 | `src/task-scheduler.ts` | Cron-based proactive tasks |
 | `src/config.ts` | Environment variable parsing |
+| `src/ha.ts` | Home Assistant client: allowlist, rate limiter, fetch wrappers |
 | `src/utils/shell.ts` | Sandboxed command execution |
 
 ## Creating a Skill
@@ -177,8 +180,11 @@ Then add it to `src/skills/_registry.ts`. See [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## FAQ
 
+**Can I use this without Home Assistant?**
+Yes — lights and AC fall back to stubs, sensors still work via MQTT. HA unlocks real device control.
+
 **Can I use this without IKEA lights?**
-Yes. Jeeves will manage what he can and politely lament what he can't.
+Yes. Jeeves controls whatever's in `HA_ALLOWED` in `src/ha.ts`.
 
 **Can I use a different LLM?**
 Gemini is primary, Ollama is the fallback. Swap models in `.env`. The codebase is small enough to rewire.

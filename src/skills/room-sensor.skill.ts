@@ -1,8 +1,11 @@
 import { Type } from '@google/genai';
 import { SkillManifest } from './_types';
-import { Z2M_SENSOR_ID } from '../config';
+import { Z2M_SENSOR_ID, HA_CO2_ENTITY } from '../config';
 import { getDb, logEvent } from '../db';
 import { getSensor } from '../mqtt';
+import { checkHa, haGet, haGetState } from '../ha';
+
+const USE_HA_CO2 = !!HA_CO2_ENTITY;
 
 const STALE_THRESHOLD = 1_800_000; // 30 min
 const LOW_BATTERY_THRESHOLD = 15;
@@ -94,6 +97,17 @@ const skill: SkillManifest = {
         },
 
         async room_co2() {
+            if (USE_HA_CO2) {
+                if (!await checkHa()) return '[TOOL_RESULT] Home Assistant недоступен.';
+                try {
+                    const s = await haGetState(HA_CO2_ENTITY);
+                    const ppm = Number(s.state);
+                    const level = ppm > 2000 ? '🔴 опасно' : ppm > 1000 ? '🟡 высокий' : '🟢 норма';
+                    return `[TOOL_RESULT] CO₂: ${ppm} ppm (${level})`;
+                } catch (err: any) {
+                    return `[TOOL_RESULT] Ошибка CO₂: ${err.message}`;
+                }
+            }
             return '[TOOL_RESULT] Датчик CO₂ не подключён. Требуется установка датчика (например, SCD40/SCD41).';
         },
 
@@ -111,9 +125,20 @@ const skill: SkillManifest = {
             if (s.humidity! < 35) advice.push('сухо — нужен увлажнитель');
             else if (s.humidity! > 60) advice.push('влажно — проветри');
 
+            let co2Line = '';
+            if (USE_HA_CO2) {
+                try {
+                    const co2State = await haGetState(HA_CO2_ENTITY);
+                    const ppm = Number(co2State.state);
+                    co2Line = `CO₂: ${ppm} ppm\n`;
+                    if (ppm > 1000) advice.push('CO₂ высокий — проветри');
+                } catch { /* ignore, CO2 is optional */ }
+            }
+
             return `[TOOL_RESULT] Комфорт в студии:\n` +
                 `Температура: ${s.temperature!.toFixed(1)}°C\n` +
                 `Влажность: ${s.humidity!}%\n` +
+                co2Line +
                 (s.battery !== undefined ? `Батарея датчика: ${s.battery}%\n` : '') +
                 (advice.length > 0 ? `Совет: ${advice.join('; ')}` : 'Всё в норме.');
         },
@@ -124,6 +149,30 @@ const skill: SkillManifest = {
 
         async room_history(args: { hours?: number; sensor?: string }) {
             const hours = Math.min(Math.max(args.hours || 3, 1), 24);
+
+            // HA history path: use if CO₂ entity is configured
+            if (USE_HA_CO2) {
+                if (!await checkHa()) return '[TOOL_RESULT] Home Assistant недоступен.';
+                try {
+                    const start = new Date(Date.now() - hours * 3600_000).toISOString();
+                    const data: any[][] = await haGet(
+                        `/api/history/period/${start}?filter_entity_id=${HA_CO2_ENTITY}&end_time=${new Date().toISOString()}`
+                    );
+                    const readings = data?.[0] ?? [];
+                    if (!readings.length) return `[TOOL_RESULT] Нет данных CO₂ за последние ${hours}ч.`;
+                    const lines = readings
+                        .filter((_: any, i: number) => i % Math.max(1, Math.floor(readings.length / 20)) === 0)
+                        .map((r: any) => {
+                            const time = new Date(r.last_changed).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+                            return `${time} CO₂: ${r.state} ppm`;
+                        });
+                    return `[TOOL_RESULT] История CO₂ за ${hours}ч:\n${lines.join('\n')}`;
+                } catch (err: any) {
+                    return `[TOOL_RESULT] Ошибка истории: ${err.message}`;
+                }
+            }
+
+            // SQLite fallback (temperature + humidity from MQTT)
             const db = getDb();
             const since = new Date(Date.now() - hours * 3600000).toISOString();
 
@@ -145,7 +194,7 @@ const skill: SkillManifest = {
 
             const lines = rows.map((r: any) => {
                 const time = new Date(r.timestamp).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-                const unit = r.type === 'temperature' ? '°C' : r.type === 'humidity' ? '%' : ' ppm';
+                const unit = r.type === 'temperature' ? '°C' : '%';
                 return `${time} ${r.type}: ${r.value}${unit}`;
             });
             return `[TOOL_RESULT] История за ${hours}ч:\n${lines.join('\n')}`;
