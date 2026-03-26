@@ -87,9 +87,11 @@ describe('safe-shell — runSafeCommand', () => {
         });
 
         it('should timeout on long commands', async () => {
-            // ping with high count, very short timeout
+            // 192.0.2.1 is TEST-NET (RFC 5737), guaranteed non-routable → ping will hang
+            // On macOS /usr/bin/ping doesn't exist (it's /sbin/ping) → ENOENT
+            // Both outcomes are valid rejections; CI (Ubuntu) will exercise the timeout path
             await expect(
-                runSafeCommand('ping', ['-c', '100', '127.0.0.1'], 100)
+                runSafeCommand('ping', ['-c', '100', '192.0.2.1'], 200)
             ).rejects.toThrow();
         });
     });

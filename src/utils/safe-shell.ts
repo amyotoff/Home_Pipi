@@ -99,6 +99,10 @@ export async function runSafeCommand(
         const { stdout } = await execFileAsync(entry.path, args, { timeout: timeoutMs });
         return stdout.trim();
     } catch (err: any) {
+        // If killed by timeout, always throw
+        if (err.killed) {
+            throw new Error(`Command timed out after ${timeoutMs}ms: ${bin} ${args.join(' ')}`, { cause: err });
+        }
         if (err.stdout) return err.stdout.trim();
         throw new Error(`Command failed: ${bin} ${args.join(' ')}: ${err.message}`, { cause: err });
     }
